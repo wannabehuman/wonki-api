@@ -413,6 +413,31 @@ export class InboundService {
   }
 
   /**
+   * 현재고 조회 (품목별 집계)
+   * wk_handstock 테이블의 quantity를 품목별로 합산하여 반환
+   * @returns 품목별 현재 재고 수량
+   */
+  async getCurrentStock(): Promise<any[]> {
+    const result = await this.inboundRepository
+      .createQueryBuilder('handstock')
+      .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .select([
+        'handstock.stock_code AS stock_code',
+        'stock.name AS stock_name',
+        'stock.category AS category',
+        'stock.unit AS unit',
+        'SUM(handstock.quantity) AS quantity',
+        'COUNT(handstock.inbound_no) AS inbound_count'
+      ])
+      .groupBy('handstock.stock_code, stock.name, stock.category, stock.unit')
+      .having('SUM(handstock.quantity) > 0')  // 재고가 0보다 큰 품목만 표시
+      .orderBy('handstock.stock_code', 'ASC')
+      .getRawMany();
+
+    return result;
+  }
+
+  /**
    * 일별 입고 이력 집계 (년월 기준)
    * @param year 년도 (예: 2025)
    * @param month 월 (1-12)
@@ -464,6 +489,92 @@ export class InboundService {
 
       // 해당 일자에 수량 설정
       stockMap.get(stockCode)[`day_${day}`] = quantity;
+    });
+
+    // Map을 배열로 변환
+    return Array.from(stockMap.values());
+  }
+
+  /**
+   * 입고이력 조회 (품목별 일별 피벗)
+   * @param year 년도 (예: 2025)
+   * @param month 월 (1-12)
+   * @param itemCode 품목코드 (선택)
+   * @param itemName 품목명 (선택)
+   * @returns 품목별 일별 입고 수량
+   */
+  async getInboundHistory(
+    year: number,
+    month: number,
+    itemCode?: string,
+    itemName?: string
+  ): Promise<any[]> {
+    // 해당 월의 시작일과 종료일 계산
+    const startDate = new Date(year, month - 1, 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(year, month, 0); // 해당 월의 마지막 날
+    endDate.setHours(23, 59, 59, 999);
+
+    const daysInMonth = endDate.getDate();
+
+    // 쿼리 빌더 생성
+    const queryBuilder = this.inboundRepository
+      .createQueryBuilder('handstock')
+      .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .select([
+        'handstock.stock_code AS stock_code',
+        'stock.name AS item_name',
+        'EXTRACT(DAY FROM handstock.inbound_date) AS day',
+        'SUM(handstock.quantity) AS quantity'
+      ])
+      .where('handstock.inbound_date >= :startDate', { startDate })
+      .andWhere('handstock.inbound_date <= :endDate', { endDate });
+
+    // 품목코드 필터
+    if (itemCode) {
+      queryBuilder.andWhere('handstock.stock_code LIKE :itemCode', {
+        itemCode: `%${itemCode}%`
+      });
+    }
+
+    // 품목명 필터
+    if (itemName) {
+      queryBuilder.andWhere('stock.name LIKE :itemName', {
+        itemName: `%${itemName}%`
+      });
+    }
+
+    const inboundData = await queryBuilder
+      .groupBy('handstock.stock_code, stock.name, EXTRACT(DAY FROM handstock.inbound_date)')
+      .orderBy('handstock.stock_code', 'ASC')
+      .getRawMany();
+
+    // 품목별로 그룹화하고 일별 데이터 피벗
+    const stockMap = new Map<string, any>();
+
+    inboundData.forEach((row) => {
+      const stockCode = row.stock_code;
+      const day = parseInt(row.day);
+      const quantity = parseFloat(row.quantity);
+
+      if (!stockMap.has(stockCode)) {
+        stockMap.set(stockCode, {
+          stock_code: stockCode,
+          item_name: row.item_name,
+          total_qty: 0
+        });
+        // 각 일자별 필드 초기화
+        for (let i = 1; i <= daysInMonth; i++) {
+          const dayField = `day_${String(i).padStart(2, '0')}`;
+          stockMap.get(stockCode)[dayField] = 0;
+        }
+      }
+
+      // 해당 일자에 수량 설정
+      const dayField = `day_${String(day).padStart(2, '0')}`;
+      stockMap.get(stockCode)[dayField] = quantity;
+      stockMap.get(stockCode).total_qty += quantity;
     });
 
     // Map을 배열로 변환

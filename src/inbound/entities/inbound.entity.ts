@@ -14,7 +14,7 @@ export class Handstock {
   @Column({ type: 'date', nullable: true })
   preparation_date: Date; // 조제일자
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'int', default: 0 })
   quantity: number;
 
   @Column({ length: 20 })

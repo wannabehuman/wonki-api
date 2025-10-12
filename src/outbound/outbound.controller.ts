@@ -32,6 +32,48 @@ export class OutboundController {
     return this.outboundService.findAll();
   }
 
+  /**
+   * 출고 이력 조회 (입고번호별 일별 피벗)
+   * GET /api/outbound/history?month=2025-01&itemCode=TEST&itemName=품목명
+   */
+  @Get('history')
+  async getHistory(@Query() query: any) {
+    console.log('Outbound History query params:', query);
+
+    // month 파라미터에서 년월 추출 (YYYY-MM 형식)
+    const month = query.month || query.OUTBOUND_MONTH;
+    console.log('Month value:', month);
+
+    if (!month) {
+      throw new Error('month parameter is required (format: YYYY-MM)');
+    }
+
+    const parts = month.split('-');
+    if (parts.length !== 2) {
+      throw new Error(`Invalid month format: ${month}. Use YYYY-MM`);
+    }
+
+    const [yearStr, monthStr] = parts;
+    const year = parseInt(yearStr);
+    const monthNum = parseInt(monthStr);
+
+    console.log('Parsed year:', year, 'month:', monthNum);
+
+    if (isNaN(year) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      throw new Error(`Invalid year or month: year=${year}, month=${monthNum}`);
+    }
+
+    const itemCode = query.itemCode || query.ITEM_CD || '';
+    const itemName = query.itemName || query.ITEM_NM || '';
+
+    console.log('Calling getOutboundHistory with:', { year, monthNum, itemCode, itemName });
+
+    const result = await this.outboundService.getOutboundHistory(year, monthNum, itemCode, itemName);
+    console.log('History result sample:', result.length > 0 ? result[0] : 'No data');
+
+    return result;
+  }
+
   @Get('stock/:stock_code')
   async findByStock(@Param('stock_code') stock_code: string) {
     return this.outboundService.findByStock(stock_code);

@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserStatus } from './entities/user.entity';
 import { ApproveUserDto } from './dto/approve-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -61,5 +63,51 @@ export class UsersService {
     user.approvedAt = new Date();
 
     return this.usersRepository.save(user);
+  }
+
+  async changePassword(changePasswordDto: ChangePasswordDto): Promise<{ message: string }> {
+    const { userId, currentPassword, newPassword } = changePasswordDto;
+    const user = await this.findById(userId);
+
+    // 현재 비밀번호 확인
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('현재 비밀번호가 일치하지 않습니다.');
+    }
+
+    // 새 비밀번호 암호화
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+
+    await this.usersRepository.save(user);
+
+    return { message: '비밀번호가 성공적으로 변경되었습니다.' };
+  }
+
+  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.findById(id);
+
+    Object.assign(user, updateUserDto);
+
+    return this.usersRepository.save(user);
+  }
+
+  async deleteUser(id: string): Promise<{ message: string }> {
+    const user = await this.findById(id);
+    await this.usersRepository.remove(user);
+
+    return { message: '사용자가 성공적으로 삭제되었습니다.' };
+  }
+
+  async resetPassword(userId: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.findById(userId);
+
+    // 새 비밀번호 암호화
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+
+    await this.usersRepository.save(user);
+
+    return { message: '비밀번호가 초기화되었습니다.' };
   }
 }

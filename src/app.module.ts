@@ -11,8 +11,12 @@ import { MenuModule } from './menu/menu.module';
 import { StockBaseModule } from './basecode/stock-base.module';
 import { InboundModule } from './inbound/inbound.module';
 import { OutboundModule } from './outbound/outbound.module';
-import { MasterModule } from './master/master.module';
 import { CodeModule } from './code/code.module';
+import { DashboardController } from './dashboard/dashboard.controller';
+import { DashboardService } from './dashboard/dashboard.service';
+import { Handstock } from './inbound/entities/inbound.entity';
+import { StockHst } from './outbound/entities/outbound.entity';
+import { StockBase } from './basecode/entities/stock-base.entity';
 
 @Module({
   imports: [
@@ -49,19 +53,19 @@ import { CodeModule } from './code/code.module';
     StockBaseModule,
     InboundModule,
     OutboundModule,
-    MasterModule,
     CodeModule,
-
+    TypeOrmModule.forFeature([Handstock, StockHst, StockBase]),
 
     // VisitorCountModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, DashboardController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard, // 전역 Rate Limiting 적용
     },
+    DashboardService,
   ],
   
 

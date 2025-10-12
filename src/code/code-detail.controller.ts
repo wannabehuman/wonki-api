@@ -12,7 +12,7 @@ export class CodeDetailController {
    */
   @Get()
   async findAll() {
-    return this.codeDetailService.findAll();
+    return [];
   }
 
   /**
@@ -25,17 +25,28 @@ export class CodeDetailController {
   // }
 
   /**
+   * 그룹코드별 조회 (먼저 선언)
+   * GET /api/code-detail/:grp_code
+   */
+  @Get(':grp_code')
+  async findGrpCd(@Param('grp_code') grp_code: string) {
+    // console.log(grp_code);
+    // grp_code가 비어있거나 유효하지 않으면 빈 배열 반환
+    if (!grp_code || grp_code.trim() === '') {
+      console.log('grp_code가 비어있거나 유효하지 않음');
+      return [];
+    }
+    console.log('grp_code가 유효함');
+    return this.codeDetailService.findByGroupCode(grp_code);
+  }
+
+  /**
    * 단일 조회
    * GET /api/code-detail/:grp_code/:code
    */
   @Get(':grp_code/:code')
   async findOne(@Param('grp_code') grp_code: string, @Param('code') code: string) {
     return this.codeDetailService.findOne(grp_code, code);
-  }
-  @Get(':grp_code')
-  async findGrpCd(@Param('grp_code') grp_code: string) {
-    // console.log(body);
-    return this.codeDetailService.findByGroupCode(grp_code);
   }
   /**
    * 조회 및 저장 (POST)

@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, IsDate } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsNumber, IsDate } from 'class-validator';
 
 export class UpdateStockBaseDto {
   @IsString()
@@ -20,6 +20,10 @@ export class UpdateStockBaseDto {
   @IsInt()
   @IsOptional()
   max_use_period?: number;
+
+  @IsNumber()
+  @IsOptional()
+  safety_stock?: number;
 
   @IsString()
   @IsOptional()

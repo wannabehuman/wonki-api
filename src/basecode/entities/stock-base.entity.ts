@@ -17,6 +17,9 @@ export class StockBase {
   @Column({ type: 'int', nullable: true })
   max_use_period: number;
 
+  @Column({ type: 'int', nullable: true, default: 0 })
+  safety_stock: number;
+
   @Column({ type: 'text', nullable: true })
   remark: string;
 

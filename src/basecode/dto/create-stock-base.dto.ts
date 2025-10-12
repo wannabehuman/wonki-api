@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, MaxLength, MinLength, Matches, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsNumber, MaxLength, MinLength, Matches, Min, Max } from 'class-validator';
 
 export class CreateStockBaseDto {
   @IsString()
@@ -29,6 +29,11 @@ export class CreateStockBaseDto {
   @Max(3650, { message: '사용기간은 3650일을 초과할 수 없습니다.' })
   @IsOptional()
   max_use_period?: number;
+
+  @IsNumber({}, { message: '안전재고는 숫자여야 합니다.' })
+  @Min(0, { message: '안전재고는 0 이상이어야 합니다.' })
+  @IsOptional()
+  safety_stock?: number;
 
   @IsString()
   @MaxLength(500, { message: '비고는 최대 500자까지 가능합니다.' })

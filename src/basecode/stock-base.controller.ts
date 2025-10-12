@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, ParseIntPipe, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, ParseIntPipe, ValidationPipe } from '@nestjs/common';
 import { StockBaseService } from './stock-base.service';
 import { CreateStockBaseDto } from './dto/create-stock-base.dto';
 import { UpdateStockBaseDto } from './dto/update-stock-base.dto';
@@ -7,9 +7,52 @@ import { UpdateStockBaseDto } from './dto/update-stock-base.dto';
 export class StockBaseController {
   constructor(private readonly stockBaseService: StockBaseService) {}
 
+  /**
+   * 품목 조회 (GET)
+   * GET /api/stock-base
+   * GET /api/stock-base?ITEM_CD=TEST&ITEM_NM=테스트&ITEM_GRP_CD=카테고리
+   */
   @Get()
-  async findAll() {
+  async findAll(@Query() query: any) {
+    console.log('Query params:', query);
+
+    // 대소문자 모두 지원 (ITEM_CD/code, ITEM_NM/name, ITEM_GRP_CD/category)
+    const code = query.ITEM_CD || query.code;
+    const name = query.ITEM_NM || query.name;
+    const category = query.ITEM_GRP_CD || query.category;
+    const unit = query.unit;
+    const isActive = query.isActive;
+
+    // 검색 조건이 있는지 확인 (빈 문자열 제외)
+    const hasSearchParams = (code && code.trim() !== '') ||
+                           (name && name.trim() !== '') ||
+                           (category && category.trim() !== '') ||
+                           unit ||
+                           isActive !== undefined;
+
+    if (hasSearchParams) {
+      const filters = {
+        code: code && code.trim() !== '' ? code : undefined,
+        name: name && name.trim() !== '' ? name : undefined,
+        category: category && category.trim() !== '' ? category : undefined,
+        unit: unit,
+        isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined
+      };
+      console.log('Searching with filters:', filters);
+      return this.stockBaseService.search(filters);
+    }
+
+    console.log('Returning all items');
     return this.stockBaseService.findAll();
+  }
+
+  /**
+   * 카테고리 목록 조회 (드롭박스용)
+   * GET /api/stock-base/categories
+   */
+  @Get('categories')
+  async getCategories() {
+    return this.stockBaseService.getCategories();
   }
 
   @Get('category/:category')

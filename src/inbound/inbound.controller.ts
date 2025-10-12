@@ -36,6 +36,15 @@ export class InboundController {
   }
 
   /**
+   * 현재고 조회 (품목별 집계)
+   * GET /api/inbound/current
+   */
+  @Get('current')
+  async getCurrentStock() {
+    return this.inboundService.getCurrentStock();
+  }
+
+  /**
    * 일별 입고 이력 집계 조회
    * GET /api/inbound/daily?year=2025&month=1
    */
@@ -72,6 +81,48 @@ export class InboundController {
       throw new Error('Invalid date format. Use YYYY-MM-DD');
     }
     return this.inboundService.findByDate(new Date(inbound_date));
+  }
+
+  /**
+   * 입고 이력 조회 (입고번호별 일별 피벗)
+   * GET /api/inbound/history?month=2025-01&itemCode=TEST&itemName=품목명
+   */
+  @Get('history')
+  async getHistory(@Query() query: any) {
+    console.log('History query params:', query);
+
+    // month 파라미터에서 년월 추출 (YYYY-MM 형식)
+    const month = query.month || query.INBOUND_MONTH;
+    console.log('Month value:', month);
+
+    if (!month) {
+      throw new Error('month parameter is required (format: YYYY-MM)');
+    }
+
+    const parts = month.split('-');
+    if (parts.length !== 2) {
+      throw new Error(`Invalid month format: ${month}. Use YYYY-MM`);
+    }
+
+    const [yearStr, monthStr] = parts;
+    const year = parseInt(yearStr);
+    const monthNum = parseInt(monthStr);
+
+    console.log('Parsed year:', year, 'month:', monthNum);
+
+    if (isNaN(year) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      throw new Error(`Invalid year or month: year=${year}, month=${monthNum}`);
+    }
+
+    const itemCode = query.itemCode || query.ITEM_CD || '';
+    const itemName = query.itemName || query.ITEM_NM || '';
+
+    console.log('Calling getInboundHistory with:', { year, monthNum, itemCode, itemName });
+
+    const result = await this.inboundService.getInboundHistory(year, monthNum, itemCode, itemName);
+    console.log('History result sample:', result.length > 0 ? result[0] : 'No data');
+
+    return result;
   }
 
   /**
@@ -132,11 +183,11 @@ export class InboundController {
   }
 
   /**
-   * 입고 이력 조회
+   * 입고 이력 조회 (POST - 하위 호환성)
    * POST /api/inbound/history
    */
   @Post('history')
-  async getHistory(@Body() body: any) {
+  async getHistoryPost(@Body() body: any) {
     const { mode, ...filterData } = body;
 
     if (mode === 'SELECT' || mode === 'select') {

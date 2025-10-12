@@ -196,13 +196,16 @@ export class OutboundService {
             throw new Error(`해당 입고 데이터를 찾을 수 없습니다. (입고번호: ${outboundDto.inbound_no})`);
           }
 
+          const currentStock = Number(inbound.quantity);
+          const outQty = Number(outboundDto.quantity);
+
           // 재고 부족 검사
-          if (inbound.quantity < outboundDto.quantity) {
-            throw new Error(`재고 부족: 현재 재고 ${inbound.quantity}${inbound.unit}, 출고 요청 ${outboundDto.quantity}${outboundDto.unit}`);
+          if (currentStock < outQty) {
+            throw new Error(`재고 부족: 현재 재고 ${currentStock}${inbound.unit}, 출고 요청 ${outQty}${outboundDto.unit}`);
           }
 
           // 입고 수량에서 출고 수량 차감
-          inbound.quantity -= outboundDto.quantity;
+          inbound.quantity = currentStock - outQty;
           await queryRunner.manager.save(Handstock, inbound);
 
           // 출고 데이터 생성
@@ -233,6 +236,10 @@ export class OutboundService {
 
         } else if (status === 'U') {
           const id = parseInt((outboundDto as any).id);
+          console.log('=== 출고 수정 시작 ===');
+          console.log('수정할 ID:', id);
+          console.log('수정 데이터:', outboundDto);
+
           if (!id || isNaN(id)) {
             throw new Error('수정할 출고 데이터의 ID가 필요합니다.');
           }
@@ -245,33 +252,81 @@ export class OutboundService {
             throw new Error(`해당 출고 데이터가 존재하지 않습니다.`);
           }
 
+          console.log('기존 출고 데이터:', existingStockHst);
           const oldValue = { ...existingStockHst };
 
-          // 기존 출고 수량을 입고에 다시 추가
-          const oldHandstock = await queryRunner.manager.findOne(Handstock, {
-            where: { inbound_no: existingStockHst.inbound_no }
-          });
+          // 입고번호가 변경되는 경우
+          if (existingStockHst.inbound_no !== outboundDto.inbound_no) {
+            console.log('입고번호 변경됨:', existingStockHst.inbound_no, '->', outboundDto.inbound_no);
 
-          if (oldHandstock) {
-            oldHandstock.quantity += existingStockHst.quantity;
-            await queryRunner.manager.save(Handstock, oldHandstock);
+            // 기존 입고번호의 재고에 기존 출고 수량을 다시 추가
+            const oldHandstock = await queryRunner.manager.findOne(Handstock, {
+              where: { inbound_no: existingStockHst.inbound_no }
+            });
+
+            console.log('기존 입고 데이터:', oldHandstock);
+            if (oldHandstock) {
+              const oldStock = Number(oldHandstock.quantity);
+              const existingOutQty = Number(existingStockHst.quantity);
+              console.log('기존 입고 재고 복원:', oldStock, '+', existingOutQty);
+              oldHandstock.quantity = oldStock + existingOutQty;
+              await queryRunner.manager.save(Handstock, oldHandstock);
+              console.log('복원 후 재고:', oldHandstock.quantity);
+            }
+
+            // 새로운 입고번호의 재고에서 새로운 출고 수량 차감
+            const newHandstock = await queryRunner.manager.findOne(Handstock, {
+              where: { inbound_no: outboundDto.inbound_no }
+            });
+
+            console.log('새로운 입고 데이터:', newHandstock);
+            if (!newHandstock) {
+              throw new Error(`해당 입고 데이터를 찾을 수 없습니다. (입고번호: ${outboundDto.inbound_no})`);
+            }
+
+            const newStock = Number(newHandstock.quantity);
+            const newOutQty = Number(outboundDto.quantity);
+
+            if (newStock < newOutQty) {
+              throw new Error(`재고 부족: 현재 재고 ${newStock}${newHandstock.unit}, 출고 요청 ${newOutQty}${outboundDto.unit}`);
+            }
+
+            console.log('새로운 입고 재고 차감:', newStock, '-', newOutQty);
+            newHandstock.quantity = newStock - newOutQty;
+            await queryRunner.manager.save(Handstock, newHandstock);
+            console.log('차감 후 재고:', newHandstock.quantity);
+          } else {
+            console.log('입고번호 동일, 수량만 변경');
+            // 입고번호가 같은 경우: 수량 차이만큼만 재고 조정
+            const existingQty = Number(existingStockHst.quantity);
+            const newQty = Number(outboundDto.quantity);
+            const quantityDiff = existingQty - newQty;
+            console.log('수량 차이:', quantityDiff, '(기존:', existingQty, '-> 새로운:', newQty, ')');
+
+            const handstock = await queryRunner.manager.findOne(Handstock, {
+              where: { inbound_no: existingStockHst.inbound_no }
+            });
+
+            console.log('현재 입고 데이터:', handstock);
+            if (!handstock) {
+              throw new Error(`해당 입고 데이터를 찾을 수 없습니다. (입고번호: ${existingStockHst.inbound_no})`);
+            }
+
+            // 재고 부족 검증: 현재 재고 + 원래 출고했던 수량이 새로운 출고 수량보다 작으면 안됨
+            const currentStock = Number(handstock.quantity);
+            const availableStock = currentStock + existingQty;
+            console.log('사용 가능 재고:', availableStock, '(현재:', currentStock, '+ 기존 출고:', existingQty, ')');
+
+            if (availableStock < newQty) {
+              throw new Error(`재고 부족: 사용 가능 재고 ${availableStock}${handstock.unit}, 출고 요청 ${newQty}${outboundDto.unit}`);
+            }
+
+            // 수량 차이만큼 재고 조정 (기존 5개 -> 새로운 4개 = 차이 +1 만큼 재고 증가)
+            console.log('재고 조정:', currentStock, '+', quantityDiff);
+            handstock.quantity = currentStock + quantityDiff;
+            await queryRunner.manager.save(Handstock, handstock);
+            console.log('조정 후 재고:', handstock.quantity);
           }
-
-          // 새로운 입고 데이터에서 출고 수량 차감
-          const newHandstock = await queryRunner.manager.findOne(Handstock, {
-            where: { inbound_no: outboundDto.inbound_no }
-          });
-
-          if (!newHandstock) {
-            throw new Error(`해당 입고 데이터를 찾을 수 없습니다. (입고번호: ${outboundDto.inbound_no})`);
-          }
-
-          if (newHandstock.quantity < outboundDto.quantity) {
-            throw new Error(`재고 부족: 현재 재고 ${newHandstock.quantity}${newHandstock.unit}, 출고 요청 ${outboundDto.quantity}${outboundDto.unit}`);
-          }
-
-          newHandstock.quantity -= outboundDto.quantity;
-          await queryRunner.manager.save(Handstock, newHandstock);
 
           // 출고 데이터 업데이트
           existingStockHst.inbound_no = outboundDto.inbound_no;
@@ -300,6 +355,10 @@ export class OutboundService {
 
         } else if (status === 'D') {
           const id = parseInt((outboundDto as any).id);
+          console.log('=== 출고 삭제 시작 ===');
+          console.log('삭제할 ID:', id);
+          console.log('삭제 데이터:', outboundDto);
+
           if (!id || isNaN(id)) {
             throw new Error('삭제할 출고 데이터의 ID가 필요합니다.');
           }
@@ -312,6 +371,7 @@ export class OutboundService {
             throw new Error(`해당 출고 데이터가 존재하지 않습니다.`);
           }
 
+          console.log('삭제할 출고 데이터:', existingStockHst);
           const oldValue = { ...existingStockHst };
 
           // 출고 수량을 입고에 다시 추가 (취소)
@@ -319,12 +379,20 @@ export class OutboundService {
             where: { inbound_no: existingStockHst.inbound_no }
           });
 
+          console.log('입고 데이터:', inbound);
           if (inbound) {
-            inbound.quantity += existingStockHst.quantity;
+            const currentStock = Number(inbound.quantity);
+            const returnQty = Number(existingStockHst.quantity);
+            console.log('재고 복원:', currentStock, '+', returnQty);
+            inbound.quantity = currentStock + returnQty;
             await queryRunner.manager.save(Handstock, inbound);
+            console.log('복원 후 재고:', inbound.quantity);
+          } else {
+            console.log('경고: 입고 데이터를 찾을 수 없음 (입고번호:', existingStockHst.inbound_no, ')');
           }
 
           await queryRunner.manager.delete(StockHst, id);
+          console.log('출고 데이터 삭제 완료');
 
           // 로그 기록
           await this.logService.log({
@@ -374,5 +442,92 @@ export class OutboundService {
 
   async remove(id: number): Promise<void> {
     await this.outboundRepository.delete(id);
+  }
+
+  /**
+   * 출고이력 조회 (품목별 일별 피벗)
+   * @param year 년도 (예: 2025)
+   * @param month 월 (1-12)
+   * @param itemCode 품목코드 (선택)
+   * @param itemName 품목명 (선택)
+   * @returns 품목별 일별 출고 수량
+   */
+  async getOutboundHistory(
+    year: number,
+    month: number,
+    itemCode?: string,
+    itemName?: string
+  ): Promise<any[]> {
+    // 해당 월의 시작일과 종료일 계산
+    const startDate = new Date(year, month - 1, 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(year, month, 0); // 해당 월의 마지막 날
+    endDate.setHours(23, 59, 59, 999);
+
+    const daysInMonth = endDate.getDate();
+
+    // 쿼리 빌더 생성
+    const queryBuilder = this.outboundRepository
+      .createQueryBuilder('stock_hst')
+      .leftJoin('wk_stock_base', 'stock', 'stock.code = stock_hst.stock_code')
+      .select([
+        'stock_hst.stock_code AS stock_code',
+        'stock.name AS item_name',
+        'EXTRACT(DAY FROM stock_hst.io_date) AS day',
+        'SUM(stock_hst.quantity) AS quantity'
+      ])
+      .where('stock_hst.io_date >= :startDate', { startDate })
+      .andWhere('stock_hst.io_date <= :endDate', { endDate })
+      .andWhere('stock_hst.io_type = :io_type', { io_type: 'OUT' });
+
+    // 품목코드 필터
+    if (itemCode) {
+      queryBuilder.andWhere('stock_hst.stock_code LIKE :itemCode', {
+        itemCode: `%${itemCode}%`
+      });
+    }
+
+    // 품목명 필터
+    if (itemName) {
+      queryBuilder.andWhere('stock.name LIKE :itemName', {
+        itemName: `%${itemName}%`
+      });
+    }
+
+    const outboundData = await queryBuilder
+      .groupBy('stock_hst.stock_code, stock.name, EXTRACT(DAY FROM stock_hst.io_date)')
+      .orderBy('stock_hst.stock_code', 'ASC')
+      .getRawMany();
+
+    // 품목별로 그룹화하고 일별 데이터 피벗
+    const stockMap = new Map<string, any>();
+
+    outboundData.forEach((row) => {
+      const stockCode = row.stock_code;
+      const day = parseInt(row.day);
+      const quantity = parseFloat(row.quantity);
+
+      if (!stockMap.has(stockCode)) {
+        stockMap.set(stockCode, {
+          stock_code: stockCode,
+          item_name: row.item_name,
+          total_qty: 0
+        });
+        // 각 일자별 필드 초기화
+        for (let i = 1; i <= daysInMonth; i++) {
+          const dayField = `day_${String(i).padStart(2, '0')}`;
+          stockMap.get(stockCode)[dayField] = 0;
+        }
+      }
+
+      // 해당 일자에 수량 설정
+      const dayField = `day_${String(day).padStart(2, '0')}`;
+      stockMap.get(stockCode)[dayField] = quantity;
+      stockMap.get(stockCode).total_qty += quantity;
+    });
+
+    // Map을 배열로 변환
+    return Array.from(stockMap.values());
   }
 }

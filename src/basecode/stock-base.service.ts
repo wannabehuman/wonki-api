@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { StockBase } from './entities/stock-base.entity';
 import { CreateStockBaseDto } from './dto/create-stock-base.dto';
 import { UpdateStockBaseDto } from './dto/update-stock-base.dto';
@@ -21,6 +21,59 @@ export class StockBaseService {
   }
   async findByCategory(category: string): Promise<StockBase[]> {
     return this.stockBaseRepository.find({ where: { category } });
+  }
+
+  async getCategories(): Promise<{ category: string }[]> {
+    const result = await this.stockBaseRepository
+      .createQueryBuilder('stock')
+      .select('DISTINCT stock.category', 'category')
+      .where('stock.category IS NOT NULL')
+      .andWhere('stock.category != :empty', { empty: '' })
+      .orderBy('stock.category', 'ASC')
+      .getRawMany();
+
+    return result;
+  }
+
+  async search(filters: {
+    code?: string;
+    name?: string;
+    category?: string;
+    unit?: string;
+    isActive?: boolean;
+  }): Promise<StockBase[]> {
+    console.log('Search method called with filters:', filters);
+    const { code, name, category, unit, isActive } = filters;
+    const queryBuilder = this.stockBaseRepository.createQueryBuilder('stock');
+
+    if (code) {
+      queryBuilder.andWhere('stock.code LIKE :code', { code: `%${code}%` });
+      console.log('Added code filter');
+    }
+    if (name) {
+      queryBuilder.andWhere('stock.name LIKE :name', { name: `%${name}%` });
+      console.log('Added name filter');
+    }
+    if (category) {
+      queryBuilder.andWhere('stock.category = :category', { category });
+      console.log('Added category filter');
+    }
+    if (unit) {
+      queryBuilder.andWhere('stock.unit = :unit', { unit });
+      console.log('Added unit filter');
+    }
+    if (isActive !== undefined) {
+      queryBuilder.andWhere('stock.isActive = :isActive', { isActive });
+      console.log('Added isActive filter');
+    }
+
+    const sql = queryBuilder.getQuery();
+    console.log('Generated SQL:', sql);
+    console.log('Query parameters:', queryBuilder.getParameters());
+
+    const results = await queryBuilder.getMany();
+    console.log('Search results count:', results.length);
+    return results;
   }
   async create(createStockBaseDto: CreateStockBaseDto): Promise<StockBase> {
     const stockBase = this.stockBaseRepository.create(createStockBaseDto);
