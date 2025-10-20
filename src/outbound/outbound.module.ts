@@ -5,11 +5,13 @@ import { OutboundService } from './outbound.service';
 import { StockHst } from './entities/outbound.entity';
 import { Handstock } from '../inbound/entities/inbound.entity';
 import { LogModule } from '../log/log.module';
+import { StockModule } from '../stock/stock.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([StockHst, Handstock]),
     LogModule,
+    StockModule,
   ],
   controllers: [OutboundController],
   providers: [OutboundService],

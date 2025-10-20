@@ -6,6 +6,7 @@ import { CreateInboundDto } from './dto/create-inbound.dto';
 import { UpdateInboundDto } from './dto/update-inbound.dto';
 import { LogService } from '../log/log.service';
 import { StockHst } from '../outbound/entities/outbound.entity';
+import { RealStock } from '../stock/entities/real-stock.entity';
 
 @Injectable()
 export class InboundService {
@@ -14,8 +15,53 @@ export class InboundService {
     private readonly inboundRepository: Repository<Handstock>,
     @InjectRepository(StockHst)
     private readonly stockHstRepository: Repository<StockHst>,
+    @InjectRepository(RealStock)
+    private readonly realStockRepository: Repository<RealStock>,
     private readonly logService: LogService,
   ) {}
+
+  /**
+   * real_stock 업데이트 (입고 시 재고 증가)
+   */
+  private async updateRealStock(stock_code: string, quantity: number, unit: string): Promise<void> {
+    let realStock = await this.realStockRepository.findOne({
+      where: { stock_code }
+    });
+
+    if (realStock) {
+      // 기존 재고가 있으면 수량 증가
+      realStock.quantity = Number(realStock.quantity) + Number(quantity);
+      realStock.unit = unit;
+    } else {
+      // 없으면 새로 생성
+      realStock = this.realStockRepository.create({
+        stock_code,
+        quantity,
+        unit
+      });
+    }
+
+    await this.realStockRepository.save(realStock);
+  }
+
+  /**
+   * real_stock 복원 (입고 취소 시 재고 감소)
+   */
+  private async revertRealStock(stock_code: string, quantity: number): Promise<void> {
+    const realStock = await this.realStockRepository.findOne({
+      where: { stock_code }
+    });
+
+    if (realStock) {
+      realStock.quantity = Number(realStock.quantity) - Number(quantity);
+      // 재고가 0 이하가 되면 삭제
+      if (realStock.quantity <= 0) {
+        await this.realStockRepository.remove(realStock);
+      } else {
+        await this.realStockRepository.save(realStock);
+      }
+    }
+  }
 
   /**
    * 채번 생성: yyyyMMdd + 일련번호 (예: 20251009001)
@@ -311,6 +357,9 @@ export class InboundService {
 
     const savedInbound = await this.inboundRepository.save(newInbound);
 
+    // real_stock 업데이트 (재고 증가)
+    await this.updateRealStock(savedInbound.stock_code, savedInbound.quantity, savedInbound.unit);
+
     // 입고 이력 기록 (stock_hst에 기록)
     const stockHst = this.stockHstRepository.create({
       inbound_no: savedInbound.inbound_no,
@@ -343,6 +392,8 @@ export class InboundService {
   async update(inbound_no: string, updateInboundDto: UpdateInboundDto, user?: any): Promise<Handstock> {
     const existingInbound = await this.findOne(inbound_no);
     const oldValue = { ...existingInbound };
+    const oldStockCode = existingInbound.stock_code;
+    const oldQuantity = existingInbound.quantity;
 
     // 수정 가능한 필드만 업데이트
     if (updateInboundDto.stock_code !== undefined) {
@@ -376,6 +427,23 @@ export class InboundService {
 
     const updatedInbound = await this.inboundRepository.save(existingInbound);
 
+    // real_stock 업데이트
+    // 품목코드가 변경된 경우
+    if (oldStockCode !== updatedInbound.stock_code) {
+      // 기존 품목 재고 감소
+      await this.revertRealStock(oldStockCode, oldQuantity);
+      // 새 품목 재고 증가
+      await this.updateRealStock(updatedInbound.stock_code, updatedInbound.quantity, updatedInbound.unit);
+    } else if (oldQuantity !== updatedInbound.quantity) {
+      // 품목코드는 같지만 수량이 변경된 경우
+      const quantityDiff = updatedInbound.quantity - oldQuantity;
+      if (quantityDiff > 0) {
+        await this.updateRealStock(updatedInbound.stock_code, quantityDiff, updatedInbound.unit);
+      } else {
+        await this.revertRealStock(updatedInbound.stock_code, Math.abs(quantityDiff));
+      }
+    }
+
     // 로그 기록
     await this.logService.log({
       userId: user?.userId || user?.id,
@@ -397,6 +465,9 @@ export class InboundService {
   async remove(inbound_no: string, user?: any): Promise<void> {
     const existingInbound = await this.findOne(inbound_no);
     const oldValue = { ...existingInbound };
+
+    // real_stock에서 재고 감소
+    await this.revertRealStock(existingInbound.stock_code, existingInbound.quantity);
 
     await this.inboundRepository.remove(existingInbound);
 

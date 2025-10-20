@@ -6,6 +6,7 @@ import { CreateOutboundDto } from './dto/create-outbound.dto';
 import { UpdateOutboundDto } from './dto/update-outbound.dto';
 import { Handstock } from '../inbound/entities/inbound.entity';
 import { LogService } from '../log/log.service';
+import { RealStock } from '../stock/entities/real-stock.entity';
 
 @Injectable()
 export class OutboundService {
@@ -14,6 +15,8 @@ export class OutboundService {
     private readonly outboundRepository: Repository<StockHst>,
     @InjectRepository(Handstock)
     private readonly inboundRepository: Repository<Handstock>,
+    @InjectRepository(RealStock)
+    private readonly realStockRepository: Repository<RealStock>,
     private readonly dataSource: DataSource,
     private readonly logService: LogService,
   ) {}
@@ -208,6 +211,19 @@ export class OutboundService {
           inbound.quantity = currentStock - outQty;
           await queryRunner.manager.save(Handstock, inbound);
 
+          // real_stock에서도 출고 수량 차감
+          const realStock = await queryRunner.manager.findOne(RealStock, {
+            where: { stock_code: outboundDto.stock_code }
+          });
+          if (realStock) {
+            realStock.quantity = Number(realStock.quantity) - outQty;
+            if (realStock.quantity <= 0) {
+              await queryRunner.manager.remove(RealStock, realStock);
+            } else {
+              await queryRunner.manager.save(RealStock, realStock);
+            }
+          }
+
           // 출고 데이터 생성
           const newStockHst = queryRunner.manager.create(StockHst, {
             inbound_no: outboundDto.inbound_no,
@@ -274,6 +290,23 @@ export class OutboundService {
               console.log('복원 후 재고:', oldHandstock.quantity);
             }
 
+            // real_stock 복원 (기존 출고 수량만큼)
+            const oldRealStock = await queryRunner.manager.findOne(RealStock, {
+              where: { stock_code: existingStockHst.stock_code }
+            });
+            if (oldRealStock) {
+              oldRealStock.quantity = Number(oldRealStock.quantity) + Number(existingStockHst.quantity);
+              await queryRunner.manager.save(RealStock, oldRealStock);
+            } else {
+              // real_stock이 없으면 생성
+              const newRealStock = queryRunner.manager.create(RealStock, {
+                stock_code: existingStockHst.stock_code,
+                quantity: Number(existingStockHst.quantity),
+                unit: existingStockHst.unit
+              });
+              await queryRunner.manager.save(RealStock, newRealStock);
+            }
+
             // 새로운 입고번호의 재고에서 새로운 출고 수량 차감
             const newHandstock = await queryRunner.manager.findOne(Handstock, {
               where: { inbound_no: outboundDto.inbound_no }
@@ -295,6 +328,19 @@ export class OutboundService {
             newHandstock.quantity = newStock - newOutQty;
             await queryRunner.manager.save(Handstock, newHandstock);
             console.log('차감 후 재고:', newHandstock.quantity);
+
+            // real_stock에서 새 출고 수량 차감
+            const newRealStock = await queryRunner.manager.findOne(RealStock, {
+              where: { stock_code: outboundDto.stock_code }
+            });
+            if (newRealStock) {
+              newRealStock.quantity = Number(newRealStock.quantity) - newOutQty;
+              if (newRealStock.quantity <= 0) {
+                await queryRunner.manager.remove(RealStock, newRealStock);
+              } else {
+                await queryRunner.manager.save(RealStock, newRealStock);
+              }
+            }
           } else {
             console.log('입고번호 동일, 수량만 변경');
             // 입고번호가 같은 경우: 수량 차이만큼만 재고 조정
@@ -326,6 +372,20 @@ export class OutboundService {
             handstock.quantity = currentStock + quantityDiff;
             await queryRunner.manager.save(Handstock, handstock);
             console.log('조정 후 재고:', handstock.quantity);
+
+            // real_stock도 조정
+            const realStock = await queryRunner.manager.findOne(RealStock, {
+              where: { stock_code: existingStockHst.stock_code }
+            });
+            if (realStock) {
+              // 수량 차이만큼 real_stock도 조정 (출고가 줄면 재고 증가, 출고가 늘면 재고 감소)
+              realStock.quantity = Number(realStock.quantity) + quantityDiff;
+              if (realStock.quantity <= 0) {
+                await queryRunner.manager.remove(RealStock, realStock);
+              } else {
+                await queryRunner.manager.save(RealStock, realStock);
+              }
+            }
           }
 
           // 출고 데이터 업데이트
@@ -389,6 +449,23 @@ export class OutboundService {
             console.log('복원 후 재고:', inbound.quantity);
           } else {
             console.log('경고: 입고 데이터를 찾을 수 없음 (입고번호:', existingStockHst.inbound_no, ')');
+          }
+
+          // real_stock 복원
+          const realStock = await queryRunner.manager.findOne(RealStock, {
+            where: { stock_code: existingStockHst.stock_code }
+          });
+          if (realStock) {
+            realStock.quantity = Number(realStock.quantity) + Number(existingStockHst.quantity);
+            await queryRunner.manager.save(RealStock, realStock);
+          } else {
+            // real_stock이 없으면 생성
+            const newRealStock = queryRunner.manager.create(RealStock, {
+              stock_code: existingStockHst.stock_code,
+              quantity: Number(existingStockHst.quantity),
+              unit: existingStockHst.unit
+            });
+            await queryRunner.manager.save(RealStock, newRealStock);
           }
 
           await queryRunner.manager.delete(StockHst, id);
