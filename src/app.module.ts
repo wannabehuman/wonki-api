@@ -9,6 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { MenuModule } from './menu/menu.module';
 import { StockBaseModule } from './basecode/stock-base.module';
+import { StockHstModule } from './stock-hst/stock-hst.module';
 import { InboundModule } from './inbound/inbound.module';
 import { OutboundModule } from './outbound/outbound.module';
 import { CodeModule } from './code/code.module';
@@ -51,6 +52,7 @@ import { StockBase } from './basecode/entities/stock-base.entity';
     UsersModule,
     MenuModule,
     StockBaseModule,
+    StockHstModule,
     InboundModule,
     OutboundModule,
     CodeModule,

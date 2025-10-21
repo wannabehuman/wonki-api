@@ -110,7 +110,7 @@ export class RealStockService {
       currentStock.safety_stock = stockBase.safety_stock;
     }
 
-    // 2. 입출고 이력 조회
+    // 2. 입출고 이력 조회 (유통기한 = 조제일자 + 최대사용기간)
     const historyQuery = this.realStockRepository.manager
       .createQueryBuilder()
       .select([
@@ -123,10 +123,17 @@ export class RealStockService {
         'stock_hst.remark AS remark',
         'stock_hst."createdAt" AS created_at',
         'handstock.inbound_date AS inbound_date',
-        'handstock.preparation_date AS preparation_date'
+        'handstock.preparation_date AS preparation_date',
+        'stock_base.max_use_period AS max_use_period',
+        `CASE
+          WHEN handstock.preparation_date IS NOT NULL AND stock_base.max_use_period IS NOT NULL
+          THEN handstock.preparation_date + stock_base.max_use_period * INTERVAL '1 day'
+          ELSE NULL
+        END AS expiry_date`
       ])
       .from('wk_stock_hst', 'stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
+      .leftJoin('wk_stock_base', 'stock_base', 'stock_base.code = stock_hst.stock_code')
       .where('stock_hst.stock_code = :stock_code', { stock_code })
       .orderBy('stock_hst.io_date', 'DESC')
       .addOrderBy('stock_hst."createdAt"', 'DESC');
