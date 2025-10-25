@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RealStockService } from './real-stock.service';
 
@@ -8,12 +8,16 @@ export class RealStockController {
 
   /**
    * 재고현황 조회 (안전재고, 출고건수 포함)
-   * GET /api/real-stock/status
+   * GET /api/real-stock/status?itemGrpCode=xxx&itemCode=xxx&itemName=xxx
    */
   @Get('status')
   // @UseGuards(AuthGuard('jwt'))
-  async getStockStatus() {
-    return this.realStockService.getStockStatus();
+  async getStockStatus(
+    @Query('itemGrpCode') itemGrpCode?: string,
+    @Query('itemCode') itemCode?: string,
+    @Query('itemName') itemName?: string,
+  ) {
+    return this.realStockService.getStockStatus(itemGrpCode, itemCode, itemName);
   }
 
   /**

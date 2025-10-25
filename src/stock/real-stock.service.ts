@@ -12,46 +12,66 @@ export class RealStockService {
 
   /**
    * 재고현황 조회 (안전재고, 출고건수 포함)
+   * @param itemGrpCode 카테고리 필터
+   * @param itemCode 품목코드 필터
+   * @param itemName 품목명 필터
    * @returns 품목별 재고 현황
    */
-  async getStockStatus(): Promise<any[]> {
-    const query = this.realStockRepository
-      .createQueryBuilder('real_stock')
-      .leftJoin('wk_stock_base', 'stock_base', 'stock_base.code = real_stock.stock_code')
+  async getStockStatus(itemGrpCode?: string, itemCode?: string, itemName?: string): Promise<any[]> {
+    // stock_base를 기준으로 LEFT JOIN하여 재고가 0인 품목도 모두 표시
+    const query = this.realStockRepository.manager
+      .createQueryBuilder()
       .select([
-        'real_stock.stock_code AS stock_code',
+        'stock_base.code AS stock_code',
         'stock_base.name AS stock_name',
         'stock_base.category AS category',
-        'real_stock.quantity AS current_quantity',
-        'real_stock.unit AS unit',
+        'COALESCE(real_stock.quantity, 0) AS current_quantity',
+        'COALESCE(real_stock.unit, stock_base.unit) AS unit',
         'stock_base.safety_stock AS safety_stock',
         `(
           SELECT COUNT(*)
           FROM wk_stock_hst
-          WHERE wk_stock_hst.stock_code = real_stock.stock_code
+          WHERE wk_stock_hst.stock_code = stock_base.code
           AND wk_stock_hst.io_type = 'OUT'
         ) AS outbound_count`,
         `(
           SELECT COUNT(*)
           FROM wk_stock_hst
-          WHERE wk_stock_hst.stock_code = real_stock.stock_code
+          WHERE wk_stock_hst.stock_code = stock_base.code
           AND wk_stock_hst.io_type = 'IN'
         ) AS inbound_count`,
         `CASE
-          WHEN stock_base.safety_stock IS NOT NULL AND real_stock.quantity <= stock_base.safety_stock
+          WHEN stock_base.safety_stock IS NOT NULL AND COALESCE(real_stock.quantity, 0) <= stock_base.safety_stock
           THEN true
           ELSE false
         END AS is_low_stock`,
-        'real_stock.updated_at AS updated_at'
+        'COALESCE(real_stock.updated_at, stock_base."updatedAt") AS updated_at'
       ])
-      .orderBy('real_stock.stock_code', 'ASC');
+      .from('wk_stock_base', 'stock_base')
+      .leftJoin('wk_real_stock', 'real_stock', 'real_stock.stock_code = stock_base.code');
+
+    // 검색 필터 적용
+    if (itemGrpCode && itemGrpCode.trim() !== '') {
+      query.andWhere('stock_base.category = :itemGrpCode', { itemGrpCode });
+    }
+
+    if (itemCode && itemCode.trim() !== '') {
+      query.andWhere('stock_base.code LIKE :itemCode', { itemCode: `%${itemCode}%` });
+    }
+
+    if (itemName && itemName.trim() !== '') {
+      query.andWhere('stock_base.name LIKE :itemName', { itemName: `%${itemName}%` });
+    }
+
+    query.orderBy('stock_base.code', 'ASC');
 
     console.log('=== 재고현황 조회 SQL ===');
     console.log(query.getSql());
+    console.log('검색 조건:', { itemGrpCode, itemCode, itemName });
 
     const result = await query.getRawMany();
     console.log('=== 재고현황 조회 결과 ===');
-    console.log(JSON.stringify(result, null, 2));
+    console.log(`총 ${result.length}건`);
 
     return result;
   }
