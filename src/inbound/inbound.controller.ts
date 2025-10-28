@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/role.enum';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtOptionalGuard } from '../auth/guards/jwt-optional.guard';
 
 @Controller('inbound')
 export class InboundController {
@@ -141,6 +142,7 @@ export class InboundController {
    * Body: Array<CreateInboundDto | UpdateInboundDto> or search params
    */
   @Post()
+  @UseGuards(JwtOptionalGuard)
   async handleRequest(@Body() body: any, @CurrentUser() user?: any) {
     // 빈 객체나 빈 배열이면 전체 조회
     if (!body || (Array.isArray(body) && body.length === 0) || Object.keys(body).length === 0) {

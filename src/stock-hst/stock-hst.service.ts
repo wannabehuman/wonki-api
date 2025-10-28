@@ -38,10 +38,15 @@ export class StockHstService {
           END AS expiry_date`,
           'stock_hst.remark AS remark',
           'stock_hst."createdAt" AS "createdAt"',
+          'stock_hst."updatedAt" AS "updatedAt"',
+          'creator.name AS created_by_name',
+          'updater.name AS updated_by_name',
         ])
         .from('wk_stock_hst', 'stock_hst')
         .leftJoin('wk_stock_base', 'stock_base', 'stock_base.code = stock_hst.stock_code')
         .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
+        .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+        .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
         .where('1=1');
 
       // 필터 조건 추가

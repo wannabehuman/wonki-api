@@ -1,4 +1,4 @@
-import { Entity, Column, CreateDateColumn, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Column, CreateDateColumn, UpdateDateColumn, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity('wk_stock_hst')
 export class StockHst {
@@ -26,6 +26,15 @@ export class StockHst {
   @Column({ type: 'text', nullable: true })
   remark: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  created_by: string; // 등록자 user ID
+
+  @Column({ type: 'uuid', nullable: true })
+  updated_by: string; // 수정자 user ID
+
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

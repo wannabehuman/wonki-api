@@ -4,6 +4,7 @@ import { CreateOutboundDto } from './dto/create-outbound.dto';
 import { UpdateOutboundDto } from './dto/update-outbound.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtOptionalGuard } from '../auth/guards/jwt-optional.guard';
 
 @Controller('outbound')
 export class OutboundController {
@@ -95,6 +96,7 @@ export class OutboundController {
    * Body: Array<CreateOutboundDto | UpdateOutboundDto> or search params
    */
   @Post()
+  @UseGuards(JwtOptionalGuard)
   async handleRequest(@Body() body: any, @CurrentUser() user?: any) {
     // 빈 객체나 빈 배열이면 전체 조회
     if (!body || (Array.isArray(body) && body.length === 0) || Object.keys(body).length === 0) {

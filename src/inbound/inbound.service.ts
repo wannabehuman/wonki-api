@@ -99,6 +99,8 @@ export class InboundService {
     const result = await this.inboundRepository
       .createQueryBuilder('handstock')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = handstock.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = handstock.updated_by')
       .select([
         'handstock.inbound_no AS inbound_no',
         'handstock.stock_code AS stock_code',
@@ -114,7 +116,10 @@ export class InboundService {
           ELSE NULL
         END AS expiry_date`,
         'handstock.remark AS remark',
-        'handstock.created_at AS created_at'
+        'handstock.created_at AS created_at',
+        'handstock.updated_at AS updated_at',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .orderBy('handstock.inbound_no', 'DESC')
       .getRawMany();
@@ -134,6 +139,8 @@ export class InboundService {
     const queryBuilder = this.inboundRepository
       .createQueryBuilder('handstock')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = handstock.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = handstock.updated_by')
       .select([
         'handstock.inbound_no AS inbound_no',
         'handstock.stock_code AS stock_code',
@@ -149,7 +156,10 @@ export class InboundService {
           ELSE NULL
         END AS expiry_date`,
         'handstock.remark AS remark',
-        'handstock.created_at AS created_at'
+        'handstock.created_at AS created_at',
+        'handstock.updated_at AS updated_at',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ]);
 
     // 날짜 범위 검색
@@ -198,6 +208,8 @@ export class InboundService {
     const result = await this.inboundRepository
       .createQueryBuilder('handstock')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = handstock.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = handstock.updated_by')
       .select([
         'handstock.inbound_no AS inbound_no',
         'handstock.stock_code AS stock_code',
@@ -213,7 +225,10 @@ export class InboundService {
           ELSE NULL
         END AS expiry_date`,
         'handstock.remark AS remark',
-        'handstock.created_at AS created_at'
+        'handstock.created_at AS created_at',
+        'handstock.updated_at AS updated_at',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .where('handstock.stock_code = :stock_code', { stock_code })
       .orderBy('handstock.inbound_no', 'DESC')
@@ -232,6 +247,8 @@ export class InboundService {
     const result = await this.inboundRepository
       .createQueryBuilder('handstock')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = handstock.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = handstock.updated_by')
       .select([
         'handstock.inbound_no AS inbound_no',
         'handstock.stock_code AS stock_code',
@@ -247,7 +264,10 @@ export class InboundService {
           ELSE NULL
         END AS expiry_date`,
         'handstock.remark AS remark',
-        'handstock.created_at AS created_at'
+        'handstock.created_at AS created_at',
+        'handstock.updated_at AS updated_at',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .where('handstock.inbound_date = :inbound_date', { inbound_date: normalizedDate })
       .orderBy('handstock.inbound_no', 'DESC')
@@ -324,6 +344,9 @@ export class InboundService {
    * 생성
    */
   async create(createInboundDto: CreateInboundDto, user?: any): Promise<Handstock> {
+    // 사용자 정보 디버깅
+    console.log('CREATE - User object:', JSON.stringify(user));
+
     // 날짜 정규화
     const inboundDate = new Date(createInboundDto.inbound_date);
     if (isNaN(inboundDate.getTime())) {
@@ -353,6 +376,7 @@ export class InboundService {
       quantity: createInboundDto.quantity,
       unit: createInboundDto.unit,
       remark: createInboundDto.remark,
+      created_by: user?.userId || user?.id,
     });
 
     const savedInbound = await this.inboundRepository.save(newInbound);
@@ -390,6 +414,9 @@ export class InboundService {
    * 수정
    */
   async update(inbound_no: string, updateInboundDto: UpdateInboundDto, user?: any): Promise<Handstock> {
+    // 사용자 정보 디버깅
+    console.log('UPDATE - User object:', JSON.stringify(user));
+
     const existingInbound = await this.findOne(inbound_no);
     const oldValue = { ...existingInbound };
     const oldStockCode = existingInbound.stock_code;
@@ -423,6 +450,11 @@ export class InboundService {
     }
     if (updateInboundDto.remark !== undefined) {
       existingInbound.remark = updateInboundDto.remark;
+    }
+
+    // 수정자 정보 설정
+    if (user) {
+      existingInbound.updated_by = user.userId || user.id;
     }
 
     const updatedInbound = await this.inboundRepository.save(existingInbound);

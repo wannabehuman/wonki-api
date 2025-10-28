@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('wk_handstock')
 export class Handstock {
@@ -23,6 +23,15 @@ export class Handstock {
   @Column({ type: 'text', nullable: true })
   remark: string;
 
+  @Column({ type: 'uuid', nullable: true })
+  created_by: string; // 등록자 user ID
+
   @CreateDateColumn()
   created_at: Date;
+
+  @Column({ type: 'uuid', nullable: true })
+  updated_by: string; // 수정자 user ID
+
+  @UpdateDateColumn()
+  updated_at: Date;
 }

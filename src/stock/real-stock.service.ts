@@ -83,7 +83,7 @@ export class RealStockService {
    */
   async getStockHistory(stock_code: string): Promise<any> {
     // 1. 현재 재고 정보 조회
-    const currentStock = await this.realStockRepository
+    let currentStock = await this.realStockRepository
       .createQueryBuilder('real_stock')
       .leftJoin('wk_stock_base', 'stock_base', 'stock_base.code = real_stock.stock_code')
       .select([
@@ -122,12 +122,17 @@ export class RealStockService {
         };
       }
 
-      currentStock.stock_code = stockBase.stock_code;
-      currentStock.stock_name = stockBase.stock_name;
-      currentStock.category = stockBase.category;
-      currentStock.current_quantity = 0;
-      currentStock.unit = stockBase.unit;
-      currentStock.safety_stock = stockBase.safety_stock;
+      // real_stock에 없어도 stock_base 정보를 사용하여 계속 진행
+      currentStock = {
+        stock_code: stockBase.stock_code,
+        stock_name: stockBase.stock_name,
+        category: stockBase.category,
+        current_quantity: 0,
+        unit: stockBase.unit,
+        safety_stock: stockBase.safety_stock,
+        created_at: null,
+        updated_at: null
+      };
     }
 
     // 2. 입출고 이력 조회 (유통기한 = 조제일자 + 최대사용기간)
@@ -142,6 +147,9 @@ export class RealStockService {
         'stock_hst.unit AS unit',
         'stock_hst.remark AS remark',
         'stock_hst."createdAt" AS created_at',
+        'stock_hst."updatedAt" AS updated_at',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name',
         'handstock.inbound_date AS inbound_date',
         'handstock.preparation_date AS preparation_date',
         'stock_base.max_use_period AS max_use_period',
@@ -154,6 +162,8 @@ export class RealStockService {
       .from('wk_stock_hst', 'stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
       .leftJoin('wk_stock_base', 'stock_base', 'stock_base.code = stock_hst.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
       .where('stock_hst.stock_code = :stock_code', { stock_code })
       .orderBy('stock_hst.io_date', 'DESC')
       .addOrderBy('stock_hst."createdAt"', 'DESC');

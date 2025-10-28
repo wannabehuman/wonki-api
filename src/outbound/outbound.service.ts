@@ -26,6 +26,8 @@ export class OutboundService {
       .createQueryBuilder('stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = stock_hst.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
       .select([
         'stock_hst.id AS id',
         'stock_hst.inbound_no AS inbound_no',
@@ -38,7 +40,10 @@ export class OutboundService {
         'stock_hst.quantity AS quantity',
         'stock_hst.unit AS unit',
         'stock_hst.remark AS remark',
-        'stock_hst.createdAt AS createdAt'
+        'stock_hst.createdAt AS createdAt',
+        'stock_hst.updatedAt AS updatedAt',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .orderBy('stock_hst.createdAt', 'DESC')
       .getRawMany();
@@ -51,6 +56,8 @@ export class OutboundService {
       .createQueryBuilder('stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = stock_hst.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
       .select([
         'stock_hst.id AS id',
         'stock_hst.inbound_no AS inbound_no',
@@ -63,7 +70,10 @@ export class OutboundService {
         'stock_hst.quantity AS quantity',
         'stock_hst.unit AS unit',
         'stock_hst.remark AS remark',
-        'stock_hst.createdAt AS createdAt'
+        'stock_hst.createdAt AS createdAt',
+        'stock_hst.updatedAt AS updatedAt',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .where('stock_hst.stock_code = :stock_code', { stock_code })
       .orderBy('stock_hst.createdAt', 'DESC')
@@ -77,6 +87,8 @@ export class OutboundService {
       .createQueryBuilder('stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = stock_hst.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
       .select([
         'stock_hst.id AS id',
         'stock_hst.inbound_no AS inbound_no',
@@ -89,7 +101,10 @@ export class OutboundService {
         'stock_hst.quantity AS quantity',
         'stock_hst.unit AS unit',
         'stock_hst.remark AS remark',
-        'stock_hst.createdAt AS createdAt'
+        'stock_hst.createdAt AS createdAt',
+        'stock_hst.updatedAt AS updatedAt',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .where('stock_hst.io_date = :io_date', { io_date })
       .orderBy('stock_hst.createdAt', 'DESC')
@@ -111,6 +126,8 @@ export class OutboundService {
       .createQueryBuilder('stock_hst')
       .leftJoin('wk_handstock', 'handstock', 'handstock.inbound_no = stock_hst.inbound_no')
       .leftJoin('wk_stock_base', 'stock', 'stock.code = stock_hst.stock_code')
+      .leftJoin('wk_user', 'creator', 'creator.id = stock_hst.created_by')
+      .leftJoin('wk_user', 'updater', 'updater.id = stock_hst.updated_by')
       .select([
         'stock_hst.id AS id',
         'stock_hst.inbound_no AS inbound_no',
@@ -123,7 +140,10 @@ export class OutboundService {
         'stock_hst.quantity AS quantity',
         'stock_hst.unit AS unit',
         'stock_hst.remark AS remark',
-        'stock_hst.createdAt AS createdAt'
+        'stock_hst.createdAt AS createdAt',
+        'stock_hst.updatedAt AS updatedAt',
+        'creator.name AS created_by_name',
+        'updater.name AS updated_by_name'
       ])
       .where('stock_hst.io_type = :io_type', { io_type: 'OUT' });
 
@@ -190,6 +210,9 @@ export class OutboundService {
           }
 
           if (status === 'I') {
+          // 사용자 정보 디버깅 (INSERT)
+          console.log('OUTBOUND CREATE - User object:', JSON.stringify(user));
+
           // 입고 데이터 조회
           const inbound = await queryRunner.manager.findOne(Handstock, {
             where: { inbound_no: outboundDto.inbound_no }
@@ -233,6 +256,7 @@ export class OutboundService {
             quantity: outboundDto.quantity,
             unit: outboundDto.unit,
             remark: outboundDto.remark,
+            created_by: user?.userId || user?.id,
           });
 
           const savedStockHst = await queryRunner.manager.save(StockHst, newStockHst);
@@ -252,6 +276,8 @@ export class OutboundService {
 
         } else if (status === 'U') {
           const id = parseInt((outboundDto as any).id);
+          // 사용자 정보 디버깅 (UPDATE)
+          console.log('OUTBOUND UPDATE - User object:', JSON.stringify(user));
           console.log('=== 출고 수정 시작 ===');
           console.log('수정할 ID:', id);
           console.log('수정 데이터:', outboundDto);
@@ -396,6 +422,7 @@ export class OutboundService {
           existingStockHst.quantity = outboundDto.quantity;
           existingStockHst.unit = outboundDto.unit;
           existingStockHst.remark = outboundDto.remark;
+          existingStockHst.updated_by = user?.userId || user?.id;
 
           const updatedStockHst = await queryRunner.manager.save(StockHst, existingStockHst);
 
