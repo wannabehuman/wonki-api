@@ -22,7 +22,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         const expiresIn = configService.get<string>('JWT_EXPIRES_IN') || '24h';
         return {
           secret,
-          signOptions: { expiresIn },
+          signOptions: { expiresIn: expiresIn as string },
         };
       },
       inject: [ConfigService],
