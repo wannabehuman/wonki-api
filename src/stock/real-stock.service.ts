@@ -255,7 +255,8 @@ export class RealStockService {
         'stock_base.name AS stock_name',
         'stock_base.category AS category',
         'category_detail.code_name AS category_name',
-        // 'stock_base.unit AS unit',
+        'stock_base.unit AS unit',
+        'stock_base.safety_stock AS safety_stock',
         'handstock.inbound_no AS inbound_no',
         'handstock.inbound_date AS inbound_date',
         'handstock.preparation_date AS preparation_date',
@@ -341,12 +342,13 @@ export class RealStockService {
       { header: '카테고리', key: 'category_name', width: 15 },
       { header: '품목명', key: 'stock_name', width: 25 },
       { header: '재고수량', key: 'total', width: 12 },
+      { header: '안전재고', key: 'safety_stock', width: 12 },
       { header: '입고번호', key: 'inbound_no', width: 15 },
       { header: '수량', key: 'quantity', width: 10 },
+      { header: '단위', key: 'unit', width: 8 },
       { header: '입고일자', key: 'inbound_date', width: 12 },
       { header: '조제일자', key: 'preparation_date', width: 12 },
       { header: '유통기한', key: 'expiry_date', width: 12 },
-      { header: '단위', key: 'unit', width: 8 },
       { header: '비고', key: 'remark', width: 20 }
     ];
 
@@ -377,6 +379,7 @@ export class RealStockService {
             category_name: row.category_name || '미분류',
             stock_name: row.stock_name,
             total: total,
+            safety_stock: row.safety_stock,
             inbound_no: row.inbound_no,
             quantity: Number(row.quantity),
             inbound_date: row.inbound_date ? new Date(row.inbound_date).toISOString().split('T')[0] : '',
@@ -394,6 +397,7 @@ export class RealStockService {
         if (rowCount > 1) {
           worksheet.mergeCells(`B${stockStartRow}:B${stockStartRow + rowCount - 1}`); // 품목명
           worksheet.mergeCells(`C${stockStartRow}:C${stockStartRow + rowCount - 1}`); // 재고수량
+          worksheet.mergeCells(`D${stockStartRow}:D${stockStartRow + rowCount - 1}`); // 안전재고
         }
       });
 
@@ -435,6 +439,19 @@ export class RealStockService {
         right: { style: 'thin' }
       };
 
+      const safetyCell = worksheet.getCell(`D${row}`); // 안전재고
+
+      const total = Number(cellC.value);
+      const safety = Number(safetyCell.value);
+
+      // 색상 조건: 재고수량 < 안전재고
+      if (!isNaN(total) && !isNaN(safety) && total < safety) {
+        cellC.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFF00' } // 노란색
+        };
+      }
       // 나머지 셀 (중앙 정렬)
       ['D', 'F', 'G', 'H', 'I', 'J'].forEach(col => {
         const cell = worksheet.getCell(`${col}${row}`);
