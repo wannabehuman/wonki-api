@@ -26,11 +26,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user || user.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('접근 권한이 없습니다.');
     }
-    
+
     return {
-      id: payload.sub,
-      username: payload.username,
-      role: payload.role,
+      id: user.id,
+      username: user.username,
+      name: user.name,
+      role: user.role,
     };
   }
 }

@@ -19,9 +19,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         if (!secret) {
           throw new Error('JWT_SECRET is not defined in environment variables');
         }
+        const expiresIn = configService.get<string>('JWT_EXPIRES_IN') || '24h';
         return {
           secret,
-          signOptions: { expiresIn: '1d' },
+          signOptions: { expiresIn },
         };
       },
       inject: [ConfigService],

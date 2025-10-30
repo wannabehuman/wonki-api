@@ -98,8 +98,8 @@ export class CodeDetailService {
     const savedCodeDetail = await this.codeDetailRepository.save(newCodeDetail);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_detail',
       recordId: `${savedCodeDetail.grp_code}-${savedCodeDetail.code}`,
       operation: 'INSERT',
@@ -121,8 +121,8 @@ export class CodeDetailService {
     const updatedCodeDetail = await this.codeDetailRepository.save(existingCodeDetail);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_detail',
       recordId: `${grp_code}-${code}`,
       operation: 'UPDATE',
@@ -144,8 +144,8 @@ export class CodeDetailService {
     await this.codeDetailRepository.remove(existingCodeDetail);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_detail',
       recordId: `${grp_code}-${code}`,
       operation: 'DELETE',

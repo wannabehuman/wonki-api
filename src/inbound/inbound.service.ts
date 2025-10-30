@@ -346,6 +346,7 @@ export class InboundService {
   async create(createInboundDto: CreateInboundDto, user?: any): Promise<Handstock> {
     // 사용자 정보 디버깅
     console.log('CREATE - User object:', JSON.stringify(user));
+    console.log('CREATE - user.id:', user?.id);
 
     // 날짜 정규화
     const inboundDate = new Date(createInboundDto.inbound_date);
@@ -367,6 +368,10 @@ export class InboundService {
     // 채번 생성
     const inboundNo = await this.generateInboundNo(inboundDate);
 
+    // 사용자 ID
+    const userId = user?.id;
+    console.log('CREATE - Saving with created_by:', userId);
+
     // 엔티티 생성
     const newInbound = this.inboundRepository.create({
       inbound_no: inboundNo,
@@ -376,7 +381,7 @@ export class InboundService {
       quantity: createInboundDto.quantity,
       unit: createInboundDto.unit,
       remark: createInboundDto.remark,
-      created_by: user?.userId || user?.id,
+      created_by: userId,
     });
 
     const savedInbound = await this.inboundRepository.save(newInbound);
@@ -398,8 +403,8 @@ export class InboundService {
 
     // 로그 기록
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_handstock',
       recordId: savedInbound.inbound_no,
       operation: 'INSERT',
@@ -408,6 +413,20 @@ export class InboundService {
     });
 
     return savedInbound;
+  }
+
+  /**
+   * 출고 여부 체크
+   */
+  private async checkOutboundExists(inboundNo: string): Promise<boolean> {
+    const outboundCount = await this.stockHstRepository.count({
+      where: {
+        inbound_no: inboundNo,
+        io_type: 'OUT'
+      }
+    });
+
+    return outboundCount > 0;
   }
 
   /**
@@ -421,6 +440,23 @@ export class InboundService {
     const oldValue = { ...existingInbound };
     const oldStockCode = existingInbound.stock_code;
     const oldQuantity = existingInbound.quantity;
+
+    // 수량 변경 시 출고 여부 체크
+    if (updateInboundDto.quantity !== undefined && updateInboundDto.quantity !== oldQuantity) {
+      // 출고 이력이 있는지 확인
+      const hasOutbound = await this.checkOutboundExists(inbound_no);
+      if (hasOutbound) {
+        // 현재 handstock 수량 확인
+        const currentQuantity = existingInbound.quantity;
+        if (updateInboundDto.quantity < 0) {
+          throw new BadRequestException('수량은 0 이상이어야 합니다.');
+        }
+        // 출고가 있어도 수량 증가는 허용, 감소 시에만 재고 체크
+        if (updateInboundDto.quantity < currentQuantity) {
+          throw new BadRequestException('이미 출고된 입고품은 현재 수량보다 적게 수정할 수 없습니다.');
+        }
+      }
+    }
 
     // 수정 가능한 필드만 업데이트
     if (updateInboundDto.stock_code !== undefined) {
@@ -453,8 +489,9 @@ export class InboundService {
     }
 
     // 수정자 정보 설정
-    if (user) {
-      existingInbound.updated_by = user.userId || user.id;
+    const userId = user?.id;
+    if (userId) {
+      existingInbound.updated_by = userId;
     }
 
     const updatedInbound = await this.inboundRepository.save(existingInbound);
@@ -476,10 +513,28 @@ export class InboundService {
       }
     }
 
+    // wk_stock_hst에서 기존 입고 이력 삭제
+    await this.stockHstRepository.delete({
+      inbound_no: inbound_no,
+      io_type: 'IN'
+    });
+
+    // 새로운 수량으로 입고 이력 재생성
+    const stockHst = this.stockHstRepository.create({
+      inbound_no: updatedInbound.inbound_no,
+      stock_code: updatedInbound.stock_code,
+      io_date: updatedInbound.inbound_date,
+      io_type: 'IN',
+      quantity: updatedInbound.quantity,
+      unit: updatedInbound.unit,
+      remark: updatedInbound.remark,
+    });
+    await this.stockHstRepository.save(stockHst);
+
     // 로그 기록
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_handstock',
       recordId: inbound_no,
       operation: 'UPDATE',
@@ -498,15 +553,28 @@ export class InboundService {
     const existingInbound = await this.findOne(inbound_no);
     const oldValue = { ...existingInbound };
 
+    // 출고 여부 체크
+    const hasOutbound = await this.checkOutboundExists(inbound_no);
+    if (hasOutbound) {
+      throw new BadRequestException('이미 출고된 입고품은 삭제할 수 없습니다.');
+    }
+
+    // wk_stock_hst에서 해당 입고번호 이력 삭제
+    await this.stockHstRepository.delete({
+      inbound_no: inbound_no,
+      io_type: 'IN'
+    });
+
     // real_stock에서 재고 감소
     await this.revertRealStock(existingInbound.stock_code, existingInbound.quantity);
 
+    // wk_handstock에서 삭제
     await this.inboundRepository.remove(existingInbound);
 
     // 로그 기록
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_handstock',
       recordId: inbound_no,
       operation: 'DELETE',

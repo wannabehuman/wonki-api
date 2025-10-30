@@ -87,8 +87,8 @@ export class CodeGroupService {
     const savedCodeGroup = await this.codeGroupRepository.save(newCodeGroup);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_group',
       recordId: savedCodeGroup.grp_code,
       operation: 'INSERT',
@@ -110,8 +110,8 @@ export class CodeGroupService {
     const updatedCodeGroup = await this.codeGroupRepository.save(existingCodeGroup);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_group',
       recordId: grp_code,
       operation: 'UPDATE',
@@ -133,8 +133,8 @@ export class CodeGroupService {
     await this.codeGroupRepository.remove(existingCodeGroup);
 
     await this.logService.log({
-      userId: user?.userId || user?.id,
-      username: user?.username || user?.name,
+      userId: user?.id,
+      username: user?.name,
       tableName: 'wk_code_group',
       recordId: grp_code,
       operation: 'DELETE',

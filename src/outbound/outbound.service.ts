@@ -256,15 +256,15 @@ export class OutboundService {
             quantity: outboundDto.quantity,
             unit: outboundDto.unit,
             remark: outboundDto.remark,
-            created_by: user?.userId || user?.id,
+            created_by: user?.id,
           });
 
           const savedStockHst = await queryRunner.manager.save(StockHst, newStockHst);
 
           // 로그 기록
           await this.logService.log({
-            userId: user?.userId || user?.id,
-            username: user?.username || user?.name,
+            userId: user?.id,
+            username: user?.name,
             tableName: 'wk_stock_hst',
             recordId: savedStockHst.id.toString(),
             operation: 'INSERT',
@@ -422,14 +422,14 @@ export class OutboundService {
           existingStockHst.quantity = outboundDto.quantity;
           existingStockHst.unit = outboundDto.unit;
           existingStockHst.remark = outboundDto.remark;
-          existingStockHst.updated_by = user?.userId || user?.id;
+          existingStockHst.updated_by = user?.id;
 
           const updatedStockHst = await queryRunner.manager.save(StockHst, existingStockHst);
 
           // 로그 기록
           await this.logService.log({
-            userId: user?.userId || user?.id,
-            username: user?.username || user?.name,
+            userId: user?.id,
+            username: user?.name,
             tableName: 'wk_stock_hst',
             recordId: id.toString(),
             operation: 'UPDATE',
@@ -500,8 +500,8 @@ export class OutboundService {
 
           // 로그 기록
           await this.logService.log({
-            userId: user?.userId || user?.id,
-            username: user?.username || user?.name,
+            userId: user?.id,
+            username: user?.name,
             tableName: 'wk_stock_hst',
             recordId: id.toString(),
             operation: 'DELETE',
