@@ -210,13 +210,20 @@ export class InboundService {
       .leftJoin('wk_stock_base', 'stock', 'stock.code = handstock.stock_code')
       .leftJoin('wk_user', 'creator', 'creator.id = handstock.created_by')
       .leftJoin('wk_user', 'updater', 'updater.id = handstock.updated_by')
+      .leftJoin(
+        'wk_stock_hst',
+        'outbound',
+        'outbound.inbound_no = handstock.inbound_no AND outbound.io_type = \'OUT\''
+      )
       .select([
         'handstock.inbound_no AS inbound_no',
         'handstock.stock_code AS stock_code',
         'stock.name AS stock_name',
         'handstock.inbound_date AS inbound_date',
         'handstock.preparation_date AS preparation_date',
-        'handstock.quantity AS quantity',
+        'handstock.quantity AS inbound_quantity',
+        'COALESCE(SUM(outbound.quantity), 0) AS outbound_quantity',
+        '(handstock.quantity - COALESCE(SUM(outbound.quantity), 0)) AS quantity',
         'handstock.unit AS unit',
         'stock.max_use_period AS max_use_period',
         `CASE
@@ -231,6 +238,19 @@ export class InboundService {
         'updater.name AS updated_by_name'
       ])
       .where('handstock.stock_code = :stock_code', { stock_code })
+      .groupBy('handstock.inbound_no')
+      .addGroupBy('handstock.stock_code')
+      .addGroupBy('stock.name')
+      .addGroupBy('handstock.inbound_date')
+      .addGroupBy('handstock.preparation_date')
+      .addGroupBy('handstock.quantity')
+      .addGroupBy('handstock.unit')
+      .addGroupBy('stock.max_use_period')
+      .addGroupBy('handstock.remark')
+      .addGroupBy('handstock.created_at')
+      .addGroupBy('handstock.updated_at')
+      .addGroupBy('creator.name')
+      .addGroupBy('updater.name')
       .orderBy('handstock.inbound_no', 'DESC')
       .getRawMany();
 
