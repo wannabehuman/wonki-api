@@ -17,7 +17,6 @@ services:
       - .:/app
       - /app/node_modules
     # DB가 같은 서버(호스트)에 있는 경우 host 네트워크 모드 사용
-    network_mode: "host"
     networks:
       - proxy-network
     restart: unless-stopped
